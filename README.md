@@ -12,7 +12,7 @@ if oldUI then
 end
 
 -- UI SIZE
-local expandedSize = UDim2.new(0, 300, 0, 690)
+local expandedSize = UDim2.new(0, 300, 0, 730)
 local minimizedSize = UDim2.new(0, 300, 0, 40)
 
 local gui = Instance.new("ScreenGui")
@@ -35,6 +35,7 @@ local espEnabled = false
 local noclipEnabled = false
 local godmodeEnabled = false
 local antiKnockbackEnabled = false
+local aimbotEnabled = false
 
 local targetPlayer = nil
 local targetHighlight = nil
@@ -43,6 +44,7 @@ local flyConnection
 local freecamConnection
 local godmodeConnection
 local targetConnection
+local aimbotConnection
 
 local bodyVelocity
 local bodyGyro
@@ -813,13 +815,126 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
+
+--------------------------------------------------
+-- AIMBOT
+--------------------------------------------------
+
+local aimbotButton = Instance.new("TextButton")
+aimbotButton.Size = UDim2.new(0, 250, 0, 35)
+aimbotButton.Position = UDim2.new(0.5, -125, 0, 560)
+aimbotButton.Text = "Aimbot: OFF"
+aimbotButton.TextScaled = true
+aimbotButton.Parent = frame
+
+local function getClosestPlayer()
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+
+	if not root then
+		return nil
+	end
+
+	local closestPlayer = nil
+	local closestDistance = math.huge
+
+	for _, target in ipairs(Players:GetPlayers()) do
+		if target ~= player and target.Character then
+			local targetHumanoid =
+				target.Character:FindFirstChildOfClass("Humanoid")
+
+			local targetRoot =
+				target.Character:FindFirstChild("HumanoidRootPart")
+
+			local targetHead =
+				target.Character:FindFirstChild("Head")
+
+			if targetHumanoid
+				and targetHumanoid.Health > 0
+				and targetRoot
+				and targetHead then
+
+				local distance =
+					(root.Position - targetRoot.Position).Magnitude
+
+				if distance < closestDistance then
+					closestDistance = distance
+					closestPlayer = target
+				end
+			end
+		end
+	end
+
+	return closestPlayer
+end
+
+local function stopAimbot()
+	aimbotEnabled = false
+	aimbotButton.Text = "Aimbot: OFF"
+
+	if aimbotConnection then
+		aimbotConnection:Disconnect()
+		aimbotConnection = nil
+	end
+end
+
+local function startAimbot()
+	if aimbotConnection then
+		aimbotConnection:Disconnect()
+		aimbotConnection = nil
+	end
+
+	aimbotEnabled = true
+	aimbotButton.Text = "Aimbot: ON"
+
+	aimbotConnection = RunService.RenderStepped:Connect(function()
+		if not aimbotEnabled then
+			return
+		end
+
+		local character = player.Character
+		local humanoid =
+			character and character:FindFirstChildOfClass("Humanoid")
+
+		local camera = workspace.CurrentCamera
+
+		if not humanoid or humanoid.Health <= 0 or not camera then
+			return
+		end
+
+		local target = getClosestPlayer()
+
+		if not target or not target.Character then
+			return
+		end
+
+		local targetHead = target.Character:FindFirstChild("Head")
+
+		if targetHead then
+			camera.CFrame = CFrame.lookAt(
+				camera.CFrame.Position,
+				targetHead.Position
+			)
+		end
+	end)
+end
+
+aimbotButton.MouseButton1Click:Connect(function()
+	if aimbotEnabled then
+		stopAimbot()
+	else
+		startAimbot()
+	end
+end)
+
 --------------------------------------------------
 -- TARGET PLAYER SCROLL LIST
 --------------------------------------------------
 
+
 local targetLabel = Instance.new("TextLabel")
 targetLabel.Size = UDim2.new(0, 250, 0, 30)
-targetLabel.Position = UDim2.new(0.5, -125, 0, 560)
+targetLabel.Position = UDim2.new(0.5, -125, 0, 600)
 targetLabel.Text = "Select Target Player"
 targetLabel.TextScaled = true
 targetLabel.TextColor3 = Color3.new(1, 1, 1)
@@ -828,7 +943,7 @@ targetLabel.Parent = frame
 
 local targetList = Instance.new("ScrollingFrame")
 targetList.Size = UDim2.new(0, 250, 0, 90)
-targetList.Position = UDim2.new(0.5, -125, 0, 595)
+targetList.Position = UDim2.new(0.5, -125, 0, 635)
 targetList.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 targetList.BorderSizePixel = 0
 targetList.ScrollBarThickness = 6
@@ -1164,6 +1279,10 @@ close.MouseButton1Click:Connect(function()
 
 	if targetPlayer then
 		stopTarget()
+	end
+
+	if aimbotConnection then
+		stopAimbot()
 	end
 
 	if godmodeConnection then
